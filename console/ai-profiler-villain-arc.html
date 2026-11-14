@@ -1,0 +1,732 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="color-scheme" content="light dark" />
+  <link rel="icon" href="data:," />
+  <title>AI Profiler — Proof of Concept</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Newsreader:opsz,wght@6..72,400;6..72,600;6..72,700&family=Public+Sans:wght@400;500;600;700&display=swap');
+
+    :root {
+      color-scheme: light dark;
+      --bg: #f2f0eb;
+      --paper: #fbfaf7;
+      --ink: #171817;
+      --muted: #595c58;
+      --faint: #747771;
+      --line: #cbc9c1;
+      --line-strong: #999b95;
+      --signal: #b4282b;
+      --signal-deep: #851b20;
+      --signal-soft: #f3dedb;
+      --green: #176452;
+      --green-soft: #d9ebe4;
+      --amber: #8a5a00;
+      --amber-soft: #f3e6bf;
+      --blue: #1e5672;
+      --blue-soft: #dceaf0;
+      --console: #141614;
+      --console-2: #1d201d;
+      --console-ink: #e8ebe4;
+      --console-muted: #a8ada4;
+      --console-line: #343834;
+      --console-accent: #e35d5e;
+      --console-green: #5fd3ae;
+      --shadow: 0 1px 0 rgba(20,20,18,.08), 0 18px 50px rgba(30,25,20,.07);
+      --sans: 'Public Sans', sans-serif;
+      --serif: 'Newsreader', serif;
+      --mono: 'IBM Plex Mono', monospace;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #111311;
+        --paper: #191c19;
+        --ink: #eef0ea;
+        --muted: #bdc1ba;
+        --faint: #959a93;
+        --line: #3b3f3a;
+        --line-strong: #666b64;
+        --signal: #ed6768;
+        --signal-deep: #ff8585;
+        --signal-soft: #442326;
+        --green: #7bd4bb;
+        --green-soft: #193b33;
+        --amber: #efc163;
+        --amber-soft: #3d321a;
+        --blue: #89c5df;
+        --blue-soft: #173443;
+        --console: #0c0e0c;
+        --console-2: #141614;
+        --shadow: 0 1px 0 rgba(255,255,255,.04), 0 18px 50px rgba(0,0,0,.25);
+      }
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--sans); line-height: 1.55; }
+    a { color: inherit; }
+    button, input, textarea { font: inherit; }
+    .shell { max-width: 1240px; margin: 0 auto; padding: 24px 22px 72px; }
+    .masthead { border-top: 8px solid var(--ink); padding: 28px 0 24px; display: grid; grid-template-columns: minmax(0,1.55fr) minmax(250px,.65fr); gap: 36px; border-bottom: 1px solid var(--line-strong); }
+    .issue { font: 500 11px/1.3 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--signal); margin-bottom: 12px; }
+    h1 { font: 700 clamp(44px, 7.2vw, 88px)/.91 var(--serif); letter-spacing: -.045em; margin: 0; max-width: 880px; }
+    .standfirst { font: 400 clamp(19px,2.1vw,26px)/1.35 var(--serif); color: var(--muted); max-width: 780px; margin: 22px 0 0; }
+    .verdict { align-self: end; border-top: 3px solid var(--signal); padding-top: 14px; }
+    .verdict b { display: block; font: 600 12px/1.2 var(--mono); letter-spacing: .1em; color: var(--signal); margin-bottom: 9px; }
+    .verdict p { margin: 0; font: 600 19px/1.35 var(--serif); }
+    .verdict ul { margin: 14px 0 0; padding: 0; list-style: none; font: 500 11px/1.5 var(--mono); color: var(--muted); }
+    .verdict li { padding: 6px 0; border-top: 1px solid var(--line); display: flex; justify-content: space-between; gap: 12px; }
+    .verdict li span:last-child { color: var(--ink); }
+    .dateline { display: flex; justify-content: space-between; gap: 16px; padding: 11px 0; border-bottom: 1px solid var(--line); color: var(--faint); font: 500 11px/1.4 var(--mono); text-transform: uppercase; letter-spacing: .06em; flex-wrap: wrap; }
+    .nav { position: sticky; top: 0; z-index: 20; background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); margin: 0 -22px; padding: 9px 22px; display: flex; flex-wrap: wrap; gap: 7px; }
+    .nav button { border: 1px solid var(--line); background: var(--paper); color: var(--muted); padding: 7px 11px; border-radius: 2px; cursor: pointer; font: 600 11px var(--mono); letter-spacing: .02em; }
+    .nav button:hover, .nav button:focus-visible, .nav button.active { background: var(--ink); color: var(--bg); border-color: var(--ink); outline: none; }
+    section { scroll-margin-top: 72px; border-bottom: 1px solid var(--line-strong); padding: 54px 0; }
+    .section-head { display: grid; grid-template-columns: 150px minmax(0,1fr); gap: 26px; margin-bottom: 28px; }
+    .section-num { color: var(--signal); font: 500 12px var(--mono); letter-spacing: .08em; }
+    h2 { font: 700 clamp(33px,4.7vw,58px)/1 var(--serif); letter-spacing: -.035em; margin: 0; }
+    .section-deck { margin: 12px 0 0; color: var(--muted); font-size: 17px; max-width: 780px; }
+    .content { margin-left: 176px; }
+    .lead { font: 600 clamp(23px,2.8vw,34px)/1.22 var(--serif); max-width: 860px; margin: 0 0 26px; }
+    .callout { background: var(--ink); color: var(--bg); padding: 24px 26px; box-shadow: var(--shadow); display: grid; grid-template-columns: 110px 1fr; gap: 22px; }
+    .callout .stamp { font: 500 11px/1.35 var(--mono); text-transform: uppercase; letter-spacing: .08em; color: #f09290; }
+    .callout p { margin: 0; font: 600 23px/1.3 var(--serif); }
+    .evidence-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); margin-top: 28px; }
+    .evidence { background: var(--paper); padding: 24px; min-height: 220px; }
+    .evidence.wide { grid-column: 1 / -1; min-height: auto; }
+    .tag { display: inline-block; font: 500 10px var(--mono); text-transform: uppercase; letter-spacing: .08em; border: 1px solid currentColor; padding: 4px 7px; border-radius: 99px; color: var(--blue); }
+    .tag.warn { color: var(--amber); }
+    .tag.kill { color: var(--signal); }
+    .evidence h3, .card h3 { font: 700 25px/1.08 var(--serif); margin: 17px 0 11px; }
+    .evidence p, .card p { margin: 0 0 12px; color: var(--muted); }
+    .metric { font: 700 clamp(38px,5vw,64px)/.95 var(--serif); letter-spacing: -.04em; margin: 18px 0 8px; }
+    .metric small { font: 500 14px var(--mono); letter-spacing: 0; }
+    .source { font: 500 10px/1.45 var(--mono); color: var(--faint); }
+    .source a { text-decoration-thickness: 1px; text-underline-offset: 3px; }
+    .source a:hover { color: var(--signal); }
+    .plot { background: var(--paper); padding: 24px; border: 1px solid var(--line); margin-top: 28px; }
+    .plot-title { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 23px; }
+    .plot-title h3 { font: 700 24px var(--serif); margin: 0; }
+    .plot-title span { font: 500 10px var(--mono); color: var(--faint); }
+    .axis { border-top: 1px solid var(--line-strong); position: relative; margin: 40px 14px 18px 150px; height: 280px; }
+    .tick { position: absolute; top: -7px; height: 100%; border-left: 1px dotted var(--line); font: 10px var(--mono); color: var(--faint); padding-top: 10px; }
+    .barrow { position: absolute; left: -150px; right: 0; height: 44px; display: grid; grid-template-columns: 142px 1fr; gap: 8px; align-items: center; }
+    .barrow:nth-of-type(6) { top: 34px; }.barrow:nth-of-type(7) { top: 96px; }.barrow:nth-of-type(8) { top: 158px; }.barrow:nth-of-type(9) { top: 220px; }
+    .barlabel { font: 500 11px/1.25 var(--mono); text-align: right; padding-right: 8px; }
+    .track { height: 14px; background: color-mix(in srgb, var(--line) 55%, transparent); position: relative; }
+    .range { position: absolute; top: 0; height: 14px; background: var(--signal); min-width: 4px; }
+    .range.blue { background: var(--blue); }.range.green { background: var(--green); }.range.amber { background: var(--amber); }
+    .cards { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 16px; }
+    .card { border-top: 4px solid var(--ink); padding: 20px 2px 6px; }
+    .card[data-tone="good"] { border-color: var(--green); }.card[data-tone="risk"] { border-color: var(--signal); }.card[data-tone="watch"] { border-color: var(--amber); }
+    .card .no { font: 500 11px var(--mono); color: var(--faint); }
+    .boundary { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    .boundary > div { padding: 24px; border: 1px solid var(--line); background: var(--paper); }
+    .boundary h3 { font: 700 28px var(--serif); margin: 0 0 14px; }
+    .boundary ul { margin: 0; padding: 0; list-style: none; }
+    .boundary li { padding: 11px 0; border-top: 1px solid var(--line); display: grid; grid-template-columns: 22px 1fr; gap: 8px; }
+    .boundary li::before { content: '—'; color: var(--signal); font-weight: 700; }
+    .protocol { counter-reset: phase; }
+    .phase { display: grid; grid-template-columns: 132px 1fr; gap: 24px; border-top: 1px solid var(--line); padding: 24px 0; }
+    .phase:first-child { border-top: 3px solid var(--ink); }
+    .phase-label { font: 500 11px/1.5 var(--mono); color: var(--signal); text-transform: uppercase; letter-spacing: .07em; }
+    .phase h3 { margin: 0 0 9px; font: 700 26px var(--serif); }
+    .phase p { margin: 0 0 10px; color: var(--muted); }
+    .phase code { font: 500 12px var(--mono); background: var(--paper); border: 1px solid var(--line); padding: 1px 5px; }
+    .checkline { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 13px; }
+    .chip { border: 1px solid var(--line); padding: 5px 8px; border-radius: 99px; font: 500 10px var(--mono); color: var(--muted); }
+    .market-table { border-top: 3px solid var(--ink); }
+    .mrow { display: grid; grid-template-columns: 1.1fr .8fr 1.45fr; gap: 20px; border-bottom: 1px solid var(--line); padding: 16px 0; align-items: baseline; }
+    .mrow.header { font: 500 10px var(--mono); color: var(--faint); text-transform: uppercase; letter-spacing: .08em; }
+    .mrow b { font: 600 15px var(--sans); }.mrow span { color: var(--muted); font-size: 14px; }
+    .price { font: 600 12px var(--mono); color: var(--ink) !important; }
+    .filterbar { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 20px; }
+    .filterbar button { border: 1px solid var(--line); background: transparent; color: var(--muted); padding: 7px 10px; cursor: pointer; border-radius: 99px; font: 500 11px var(--mono); }
+    .filterbar button.active { background: var(--signal); color: #fff; border-color: var(--signal); }
+    .sources { display: grid; gap: 10px; }
+    .source-card { display: grid; grid-template-columns: 88px 1fr auto; gap: 18px; align-items: start; border-top: 1px solid var(--line); padding: 16px 0; }
+    .source-card[hidden] { display: none; }
+    .source-type { font: 500 10px var(--mono); color: var(--signal); text-transform: uppercase; }
+    .source-card p { margin: 0; color: var(--muted); font-size: 14px; }
+    .source-card a { font: 600 11px var(--mono); color: var(--ink); text-underline-offset: 3px; }
+    .caveat { background: var(--amber-soft); color: var(--ink); padding: 18px 20px; border-left: 4px solid var(--amber); margin-top: 28px; }
+    .caveat b { font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: .06em; }
+    .caveat p { margin: 6px 0 0; }
+    .endnote { padding-top: 34px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; color: var(--muted); font-size: 13px; }
+    .endnote strong { color: var(--ink); }
+    .backtop { display: inline-block; margin-top: 22px; font: 600 11px var(--mono); }
+
+    /* ——— PoC console: Dynamic Solutions-style operations desk ——— */
+    .console { background: var(--console); color: var(--console-ink); border: 1px solid var(--console-line); box-shadow: var(--shadow); }
+    .console-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 13px 18px; border-bottom: 1px solid var(--console-line); font: 600 10px var(--mono); letter-spacing: .1em; text-transform: uppercase; }
+    .console-top .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--console-green); margin-right: 8px; vertical-align: 1px; }
+    .console-top span:last-child { color: var(--console-muted); letter-spacing: .04em; text-transform: none; }
+    .console-grid { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 0; }
+    .pane { padding: 20px; min-width: 0; }
+    .pane + .pane { border-left: 1px solid var(--console-line); }
+    .pane label, .pane .pane-label { display: block; font: 600 10px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--console-muted); margin: 0 0 8px; }
+    .pane input[type="text"] { width: 100%; background: var(--console-2); border: 1px solid var(--console-line); color: var(--console-ink); padding: 10px 12px; font: 500 13px var(--mono); margin-bottom: 14px; }
+    .pane textarea { width: 100%; min-height: 190px; resize: vertical; background: var(--console-2); border: 1px solid var(--console-line); color: var(--console-ink); padding: 12px; font: 400 13.5px/1.6 var(--sans); }
+    .pane textarea.small { min-height: 110px; }
+    .pane input:focus, .pane textarea:focus { outline: 2px solid var(--console-accent); outline-offset: 0; border-color: transparent; }
+    .sample-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 16px; }
+    .sample-row button, .ops-row button { border: 1px solid var(--console-line); background: transparent; color: var(--console-ink); padding: 7px 10px; cursor: pointer; font: 600 10.5px var(--mono); letter-spacing: .03em; }
+    .sample-row button:hover, .ops-row button:hover { border-color: var(--console-muted); }
+    .ops-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+    .ops-row .primary { background: var(--console-accent); border-color: var(--console-accent); color: #fff; padding: 10px 16px; }
+    .ops-row .primary:hover { background: #c94a4c; border-color: #c94a4c; }
+    .ops-status { font: 500 11px var(--mono); color: var(--console-muted); margin-top: 12px; min-height: 16px; }
+    .ops-status.ok { color: var(--console-green); }
+    .ops-status.warn { color: #efc163; }
+    .stat-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 1px; background: var(--console-line); border: 1px solid var(--console-line); margin-bottom: 18px; }
+    .stat { background: var(--console-2); padding: 12px 13px; }
+    .stat b { display: block; font: 700 21px/1.1 var(--serif); }
+    .stat span { font: 500 9.5px var(--mono); text-transform: uppercase; letter-spacing: .07em; color: var(--console-muted); }
+    .trait { margin-bottom: 13px; }
+    .trait-head { display: flex; justify-content: space-between; gap: 10px; font: 600 11px var(--mono); margin-bottom: 5px; }
+    .trait-head span:last-child { color: var(--console-muted); }
+    .trait-track { height: 8px; background: #2a2d2a; position: relative; }
+    .trait-fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--console-accent); width: 0; transition: width .5s ease; }
+    .trait-fill.g { background: var(--console-green); } .trait-fill.b { background: #7db8d6; } .trait-fill.a { background: #efc163; }
+    .trait-note { font-size: 12px; color: var(--console-muted); margin: 3px 0 0; }
+    .link-box { border: 1px solid var(--console-line); background: var(--console-2); padding: 16px; margin-top: 18px; }
+    .link-box .big { font: 700 40px/1 var(--serif); }
+    .link-box p { margin: 6px 0 0; font-size: 13px; color: var(--console-muted); }
+    .oplog { border-top: 1px solid var(--console-line); padding: 14px 20px 18px; font: 400 11.5px/1.7 var(--mono); color: var(--console-muted); max-height: 168px; overflow-y: auto; }
+    .oplog div b { color: var(--console-green); font-weight: 600; }
+    .method-note { margin-top: 16px; font-size: 13.5px; color: var(--muted); max-width: 860px; }
+    .method-note b { color: var(--ink); }
+    @media (prefers-reduced-motion: reduce) { .trait-fill { transition: none; } html { scroll-behavior: auto; } }
+
+    @media (max-width: 780px) {
+      .shell { padding: 14px 15px 50px; }
+      .masthead { grid-template-columns: 1fr; gap: 28px; padding-top: 22px; }
+      h1 { font-size: clamp(44px,13.5vw,68px); }
+      .dateline { flex-direction: column; gap: 3px; }
+      .nav { margin: 0 -15px; padding: 8px 15px; top: 0; }
+      .nav button { padding: 6px 8px; font-size: 10px; }
+      section { padding: 42px 0; }
+      .section-head { grid-template-columns: 1fr; gap: 7px; }
+      .content { margin-left: 0; }
+      .callout { grid-template-columns: 1fr; gap: 10px; padding: 20px; }
+      .evidence-grid, .cards, .boundary { grid-template-columns: 1fr; }
+      .evidence.wide { grid-column: auto; }
+      .console-grid { grid-template-columns: 1fr; }
+      .pane + .pane { border-left: none; border-top: 1px solid var(--console-line); }
+      .stat-grid { grid-template-columns: repeat(2,1fr); }
+      .plot { padding: 18px 12px; }
+      .plot-title { display: block; }
+      .axis { margin-left: 104px; }
+      .barrow { left: -104px; grid-template-columns: 96px 1fr; }
+      .barlabel { font-size: 9px; }
+      .phase { grid-template-columns: 1fr; gap: 5px; }
+      .mrow { grid-template-columns: 1fr auto; gap: 6px 10px; }
+      .mrow span:last-child { grid-column: 1 / -1; }
+      .mrow.header { display: none; }
+      .source-card { grid-template-columns: 72px 1fr; gap: 8px 12px; }
+      .source-card a { grid-column: 2; }
+      .endnote { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body id="top">
+  <main class="shell">
+    <header class="masthead">
+      <div>
+        <div class="issue">Proof of concept · Build 01 · Operations desk</div>
+        <h1>The profiler, built. Not pitched.</h1>
+        <p class="standfirst">Forget whether it ever sells. This is the working proof of concept, built Dynamic Solutions style: a case-file tool that takes text in, runs stylometry and trait inference locally, logs its evidence, and shows its work. The live demo below runs entirely in this page — paste writing in and it profiles it. Nothing leaves the browser.</p>
+      </div>
+      <aside class="verdict">
+        <b>STATUS / POC SCOPE</b>
+        <p>Text in → profile out, on-device. Selling is deferred on purpose; the instrument comes first.</p>
+        <ul>
+          <li><span>Live demo</span><span>Below ↓</span></li>
+          <li><span>Engine v0</span><span>Stylometry + lexicon</span></li>
+          <li><span>Engine v1</span><span>Local Qwen 27B</span></li>
+          <li><span>Modeled on</span><span>Solnet / DSI</span></li>
+        </ul>
+      </aside>
+    </header>
+
+    <div class="dateline"><span>Build snapshot: 11 Nov 2026</span><span>Local-only · Case-based · Evidence-logged</span></div>
+
+    <nav class="nav" aria-label="Report sections">
+      <button type="button" data-target="lab" class="active">Profiler PoC</button>
+      <button type="button" data-target="borrow">DSI teardown</button>
+      <button type="button" data-target="case">The case</button>
+      <button type="button" data-target="evidence">Signal</button>
+      <button type="button" data-target="build">Build sequence</button>
+      <button type="button" data-target="redlines">Red lines</button>
+      <button type="button" data-target="sources">Sources</button>
+    </nav>
+
+    <section id="lab">
+      <div class="section-head">
+        <div class="section-num">00 / LIVE POC</div>
+        <div><h2>Open a case. Run the profile.</h2><p class="section-deck">Dynamic Solutions runs cases, not chats — so this does too. Name the subject, drop in a writing sample, and the desk produces a case file: corpus stats, a stylometric fingerprint, trait proxies, and a second-sample linkage check for the burner-account question — <em>is Sample B the same author as Sample A?</em></p></div>
+      </div>
+
+      <div class="console" id="console">
+        <div class="console-top"><span><span class="dot"></span>Case desk · Profiler v0</span><span>Local inference — no network calls</span></div>
+        <div class="console-grid">
+          <div class="pane">
+            <label for="subjectName">Subject / case name</label>
+            <input type="text" id="subjectName" value="CASE-001 — Unnamed subject" autocomplete="off" />
+            <label for="sampleA">Sample A — primary writing</label>
+            <textarea id="sampleA" placeholder="Paste at least ~150 words of one person's writing: posts, chat logs, essays, fiction. More text = tighter fingerprint."></textarea>
+            <div class="sample-row" aria-label="Load a demo sample">
+              <button type="button" data-sample="analyst">Demo: analyst</button>
+              <button type="button" data-sample="fiction">Demo: fiction</button>
+              <button type="button" data-sample="casual">Demo: casual chat</button>
+              <button type="button" id="clearBtn">Clear</button>
+            </div>
+            <label for="sampleB">Sample B — linkage check (optional)</label>
+            <textarea id="sampleB" class="small" placeholder="Paste a second sample — a suspected alt account, a different genre, an older post. The desk compares fingerprints."></textarea>
+            <div class="ops-row">
+              <button type="button" class="primary" id="runBtn">Run profile →</button>
+              <button type="button" id="downloadBtn">Download case file</button>
+              <button type="button" id="copyBtn">Copy summary</button>
+            </div>
+            <div class="ops-status" id="opsStatus">Desk ready. Load a demo sample or paste your own text.</div>
+          </div>
+          <div class="pane" aria-live="polite">
+            <span class="pane-label">Case file — results</span>
+            <div class="stat-grid">
+              <div class="stat"><b id="stWords">—</b><span>Words</span></div>
+              <div class="stat"><b id="stSent">—</b><span>Sentences</span></div>
+              <div class="stat"><b id="stWps">—</b><span>Words / sentence</span></div>
+              <div class="stat"><b id="stTtr">—</b><span>Vocab richness</span></div>
+              <div class="stat"><b id="stWordLen">—</b><span>Avg word length</span></div>
+              <div class="stat"><b id="stConf">—</b><span>Sample confidence</span></div>
+            </div>
+            <div id="traits">
+              <div class="trait"><div class="trait-head"><span>Openness proxy</span><span id="vOpen">—</span></div><div class="trait-track"><div class="trait-fill b" id="bOpen"></div></div><p class="trait-note">Idea, theory, and imagination vocabulary density.</p></div>
+              <div class="trait"><div class="trait-head"><span>Conscientiousness proxy</span><span id="vCons">—</span></div><div class="trait-track"><div class="trait-fill g" id="bCons"></div></div><p class="trait-note">Planning, building, and completion vocabulary density.</p></div>
+              <div class="trait"><div class="trait-head"><span>Extraversion proxy</span><span id="vExtra">—</span></div><div class="trait-track"><div class="trait-fill" id="bExtra"></div></div><p class="trait-note">Social and high-energy vocabulary density.</p></div>
+              <div class="trait"><div class="trait-head"><span>Agreeableness proxy</span><span id="vAgree">—</span></div><div class="trait-track"><div class="trait-fill g" id="bAgree"></div></div><p class="trait-note">Care, thanks, and support vocabulary density.</p></div>
+              <div class="trait"><div class="trait-head"><span>Negative emotionality proxy</span><span id="vNeuro">—</span></div><div class="trait-track"><div class="trait-fill a" id="bNeuro"></div></div><p class="trait-note">Worry, strain, and frustration vocabulary density.</p></div>
+              <div class="trait"><div class="trait-head"><span>Analytical density</span><span id="vAnal">—</span></div><div class="trait-track"><div class="trait-fill b" id="bAnal"></div></div><p class="trait-note">Causal and evidence language — the closest v0 cousin of the cognitive signal.</p></div>
+            </div>
+            <div class="link-box">
+              <span class="pane-label">Stylometric linkage · A ↔ B</span>
+              <div class="big" id="linkScore">—</div>
+              <p id="linkNote">Add Sample B and run the profile to compare function-word fingerprints, sentence rhythm, and punctuation habits.</p>
+            </div>
+          </div>
+        </div>
+        <div class="oplog" id="oplog"><div><b>LOG</b> · Desk initialized. Awaiting sample.</div></div>
+      </div>
+
+      <p class="method-note"><b>What v0 is and is not.</b> This desk is a transparent heuristic instrument: word, sentence, function-word, and lexicon counts computed on-device. It demonstrates the full product shape — intake, fingerprint, linkage, case file, log — with zero backend. It does <b>not</b> estimate IQ and its trait bars are proxies, not psychometric scores. The validated method from the research below (item-first prompting, N≥4 runs, measured spread) is what the local-model engine in v1 is for. If the bars ever look more certain than the sample deserves, the sample-confidence readout is the honest number.</p>
+    </section>
+
+    <section id="borrow">
+      <div class="section-head">
+        <div class="section-num">01 / TEARDOWN</div>
+        <div><h2>Dynamic Solutions style, minus the parts that end careers.</h2><p class="section-deck">Flesh Simulator's Dynamic Solutions Inc. shipped first in the adjacent lane: Solnet, a desktop counter-harassment tool. It is the right shape to steal from and the wrong mission to copy.</p></div>
+      </div>
+      <div class="content">
+        <div class="market-table" role="table" aria-label="What to borrow from Dynamic Solutions and what to leave">
+          <div class="mrow header" role="row"><span>Solnet element</span><span>Verdict</span><span>How it lands in this PoC</span></div>
+          <div class="mrow" role="row"><b>Desktop case tool</b><span class="price">BORROW</span><span>Case desk above: one subject, one file, everything in one place. A tool people open, not a chat they prompt.</span></div>
+          <div class="mrow" role="row"><b>Stylometry to link accounts</b><span class="price">BORROW</span><span>The A↔B linkage check is the core of it: function words and rhythm survive a username change better than content does.</span></div>
+          <div class="mrow" role="row"><b>Social-graph mapping</b><span class="price">BORROW, LATER</span><span>v2: map who a subject talks with and how often, from exported logs the user supplies. Not in v0.</span></div>
+          <div class="mrow" role="row"><b>Always-on evidence logging</b><span class="price">BORROW</span><span>The operation log under the desk: every run timestamped with its inputs' stats, so a profile can be re-checked, not just believed.</span></div>
+          <div class="mrow" role="row"><b>Undercover AI personas</b><span class="price">NEVER</span><span>Solnet generates infiltrator identities to enter groups. This tool profiles text it is handed. No personas, no infiltration, no deception.</span></div>
+          <div class="mrow" role="row"><b>Request-access victim clientele</b><span class="price">DIFFERENT JOB</span><span>His customer is a harassment victim; his output is an operation. This PoC's output is a profile — text in, profile out — starting with consenting subjects and self-audits.</span></div>
+        </div>
+        <div class="callout" style="margin-top:28px">
+          <div class="stamp">The honest gap</div>
+          <p>He has a shipped tool and no published validation. You have the validation — WAIS-anchored, cross-model, genre-transfer — and, as of this page, the start of the tool. The PoC exists to close exactly that gap.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="case">
+      <div class="section-head">
+        <div class="section-num">02 / THESIS</div>
+        <div><h2>The case survives contact with reality.</h2><p class="section-deck">But a narrower product emerges from the evidence than the fantasy initially suggests.</p></div>
+      </div>
+      <div class="content">
+        <p class="lead">Text carries real signals about personality and cognition. Today's language models can recover some of them reliably. They cannot yet turn those signals into a standalone judgment about a person.</p>
+        <div class="callout">
+          <div class="stamp">Core distinction</div>
+          <p>Repeatability is not truth. A model can give the same answer every time and still be measuring the wrong thing.</p>
+        </div>
+        <div class="evidence-grid">
+          <article class="evidence">
+            <span class="tag">What holds</span>
+            <div class="metric">0.75–0.92 <small>ICC(3,4)</small></div>
+            <p>Aggregating four runs produced strong reliability in a 2026 assessment-center study. Single runs were unreliable.</p>
+            <div class="source"><a href="https://onlinelibrary.wiley.com/doi/10.1111/ijsa.70074" target="_blank" rel="noopener">Härtel et al. (2026), abstract</a></div>
+          </article>
+          <article class="evidence">
+            <span class="tag warn">What does not</span>
+            <div class="metric">r = 0.07–0.20</div>
+            <p>That same study found only modest agreement with trait tests and called the method insufficient for standalone selection.</p>
+            <div class="source"><a href="https://onlinelibrary.wiley.com/doi/10.1111/ijsa.70074" target="_blank" rel="noopener">Härtel et al. (2026), abstract</a></div>
+          </article>
+          <article class="evidence">
+            <span class="tag">The stronger signal</span>
+            <div class="metric">R² ≈ 0.7</div>
+            <p>A supervised ensemble combining writing, genetic, and teacher data predicted cognitive ability near test–retest reliability. This is strong evidence for signal in writing, not proof that zero-shot LLM judgment works.</p>
+            <div class="source"><a href="https://phys.org/news/2025-08-llms-psychological-outcomes-childhood-essays.html" target="_blank" rel="noopener">Wolfram (2025), indexed summary</a></div>
+          </article>
+          <article class="evidence">
+            <span class="tag kill">The kill test</span>
+            <h3>The Barnum control goes first.</h3>
+            <p>People rated LLM profiles as accurate as questionnaire results even when measured convergence was only moderate. A swapped-profile control is the cheapest experiment capable of killing the central claim.</p>
+            <div class="source"><a href="https://arxiv.org/abs/2602.15848v1" target="_blank" rel="noopener">Matšenas et al. (2026), abstract</a></div>
+          </article>
+          <article class="evidence wide">
+            <span class="tag warn">Observed distortion</span>
+            <h3>The models flatter toward the social mean.</h3>
+            <p>Across 32 models, agreeableness and aesthetic sensitivity ran high while negative emotionality ran low. Other work found higher agreeableness and conscientiousness and lower Machiavellianism. That is not a harmless style quirk; it is a systematic instrument bias that can make a profile feel humane while becoming less true.</p>
+            <div class="source"><a href="https://www.mdpi.com/2813-2203/5/1/5/pdf" target="_blank" rel="noopener">PSYCH study (2026), abstract</a></div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="evidence">
+      <div class="section-head">
+        <div class="section-num">03 / SIGNAL</div>
+        <div><h2>The evidence is useful, uneven, and easy to overstate.</h2><p class="section-deck">These results come from different tasks and should not be collapsed into one headline accuracy number.</p></div>
+      </div>
+      <div class="content">
+        <div class="plot" role="img" aria-label="Comparison of published model validity and reliability ranges">
+          <div class="plot-title"><h3>Published performance ranges</h3><span>Correlation / coefficient · 0 to 1</span></div>
+          <div class="axis">
+            <div class="tick" style="left:0%">0</div><div class="tick" style="left:25%">.25</div><div class="tick" style="left:50%">.50</div><div class="tick" style="left:75%">.75</div><div class="tick" style="left:100%">1</div>
+            <div class="barrow"><div class="barlabel">Conversation → Big Five</div><div class="track"><i class="range" style="left:0;width:27%"></i></div></div>
+            <div class="barrow"><div class="barlabel">Guided conversation</div><div class="track"><i class="range blue" style="left:38%;width:20%"></i></div></div>
+            <div class="barrow"><div class="barlabel">Assessment center</div><div class="track"><i class="range amber" style="left:7%;width:13%"></i></div></div>
+            <div class="barrow"><div class="barlabel">4-run reliability</div><div class="track"><i class="range green" style="left:75%;width:17%"></i></div></div>
+          </div>
+          <p class="source">Top to bottom: max r=.27; r=.38–.58; r=.07–.20; ICC=.75–.92. Reliability is shown beside validity for contrast, not equivalence.</p>
+        </div>
+        <div class="cards" style="margin-top:30px">
+          <article class="card" data-tone="good"><div class="no">METHOD 01</div><h3>Ask items, then compute traits.</h3><p>Scoring BFI-10 items before deriving traits outperformed direct “tell me their personality” prompting.</p><div class="source"><a href="https://arxiv.org/abs/2501.07532" target="_blank" rel="noopener">Zhu et al. (2025)</a></div></article>
+          <article class="card" data-tone="watch"><div class="no">METHOD 02</div><h3>Measure spread. Ignore swagger.</h3><p>RLHF rewards confidence regardless of correctness. Use run-to-run and cross-model dispersion, not verbalized certainty.</p><div class="source"><a href="https://zylos.ai/research/2026-04-18-llm-calibration-uncertainty-production-agents/" target="_blank" rel="noopener">Calibration review (2026)</a></div></article>
+          <article class="card" data-tone="risk"><div class="no">METHOD 03</div><h3>Respect the capability floor.</h3><p>Instruction-tuned 7–8B systems were inconsistent or poor on several traits; external validity for extraversion, openness, and agreeableness appeared only at 62B+ in one framework.</p><div class="source"><a href="https://www.nature.com/articles/s42256-025-01115-6" target="_blank" rel="noopener">Serapio-García et al. (2025)</a></div></article>
+        </div>
+        <div class="caveat"><b>Open technical question</b><p>The observed gradient — sub-5B-active models running hot by roughly 10–15 points, a 14B reasoning model centering correctly but hedging wide — fits the size-scaling literature, but remains an internal observation. Test it on a new author and a non-reasoning 14B model before calling it general.</p></div>
+      </div>
+    </section>
+
+    <section id="build">
+      <div class="section-head">
+        <div class="section-num">04 / EXECUTION</div>
+        <div><h2>The build sequence, PoC first.</h2><p class="section-deck">Each step is shippable on its own and none of them depends on a sale, a customer, or a frontier API staying friendly.</p></div>
+      </div>
+      <div class="content protocol">
+        <article class="phase"><div class="phase-label">Step 0 · Done</div><div><h3>This desk: the shape of the tool.</h3><p>The console above is the product skeleton — case intake, stylometric fingerprint, trait proxies, A↔B linkage, evidence log, exportable case file — running with a transparent heuristic engine. It proves the workflow before any model is wired in.</p><div class="checkline"><span class="chip">case intake</span><span class="chip">fingerprint</span><span class="chip">linkage check</span><span class="chip">op log</span><span class="chip">case-file export</span></div></div></article>
+        <article class="phase"><div class="phase-label">Step 1 · Next</div><div><h3>Wire the local engine.</h3><p>Point the same desk at the local stack: Qwen 27B on the R9700 via an Ollama-compatible endpoint. Item-first BFI prompting, at least four runs per subject, spread reported instead of a single confident number. The heuristic panel stays as the always-available fallback and sanity check.</p><div class="checkline"><span class="chip">Qwen 27B local</span><span class="chip">BFI item-first</span><span class="chip">N≥4 runs</span><span class="chip">spread, not swagger</span></div></div></article>
+        <article class="phase"><div class="phase-label">Step 2</div><div><h3>Feed it real corpora.</h3><p>DiscordChatExporter output split into per-user files becomes the intake format: one export, many cases. First runs on the three anchored subjects — the WAIS-132 anchor case, Dragon, and the completed blind-test author — where a right or wrong answer is actually knowable.</p><div class="checkline"><span class="chip">per-user exports</span><span class="chip">3 anchored cases</span><span class="chip">genre-transfer check</span></div></div></article>
+        <article class="phase"><div class="phase-label">Step 3</div><div><h3>Try to kill it, on the record.</h3><p>Swapped-profile Barnum control before anything else. Then 20–50 consenting volunteers against IPIP-50 and a cognitive proxy, misses published with the hits. A result inside the literature's r=.2–.6 band is a result; anything the Barnum control erases was never one.</p><div class="checkline"><span class="chip">Barnum control</span><span class="chip">blind scoring</span><span class="chip">public validity report</span></div></div></article>
+        <article class="phase"><div class="phase-label">Step 4 · Optional</div><div><h3>Sell it only if it survives.</h3><p>If the instrument holds up, the service layer is managed compute, deeper audits, and API convenience priced against OSINT tooling — SpiderFoot HX at $59–249/month, Maltego at $6,600/year — not against fortune-telling. If it never sells, Steps 0–3 still leave a working instrument and a published validation, which was the point.</p><div class="checkline"><span class="chip">open local core</span><span class="chip">paid service layer</span><span class="chip">claim discipline</span></div></div></article>
+      </div>
+    </section>
+
+    <section id="redlines">
+      <div class="section-head">
+        <div class="section-num">05 / CONTROL</div>
+        <div><h2>The boundaries are the moat.</h2><p class="section-deck">Cross one of these lines and the instrument becomes a liability machine. Dynamic Solutions style is a shape, not a permission slip.</p></div>
+      </div>
+      <div class="content">
+        <div class="boundary">
+          <div>
+            <h3>Build inside this box</h3>
+            <ul>
+              <li><span>Public text or text supplied with adult consent</span></li>
+              <li><span>Local-first inference, with no frontier API as the primary engine</span></li>
+              <li><span>Empirical uncertainty from at least four runs</span></li>
+              <li><span>Published failures, not only attractive hits</span></li>
+              <li><span>Consumer self-audit and consensual research</span></li>
+            </ul>
+          </div>
+          <div>
+            <h3>Never build this</h3>
+            <ul>
+              <li><span>Hiring, firing, promotion, tenant, credit, or insurance decisions</span></li>
+              <li><span>Law-enforcement risk scoring or predictive policing</span></li>
+              <li><span>Voice, face, video, or other biometric inference</span></li>
+              <li><span>Undercover personas, infiltration, or deceptive accounts</span></li>
+              <li><span>Marketing that promises a correct verdict about the customer</span></li>
+            </ul>
+          </div>
+        </div>
+        <div class="evidence-grid">
+          <article class="evidence"><span class="tag kill">Employment</span><h3>Vendor liability is live.</h3><p><em>Mobley v. Workday</em> allowed direct vendor liability under an agent theory; the class was certified in May 2025. A disclaimer is not armor if actual use is known.</p><div class="source"><a href="https://autonainews.com/7-ai-hiring-lawsuits/" target="_blank" rel="noopener">Litigation summary, indexed</a></div></article>
+          <article class="evidence"><span class="tag warn">EU</span><h3>Text is not biometric emotion inference.</h3><p>The EU workplace and education ban applies to emotion inference from biometric data. Text-only analysis sits outside that specific prohibition, while employment use remains high-risk and GDPR still treats inferred personality as personal data.</p><div class="source"><a href="https://casrai.org/dictionary/term/eu-ai-act-article-5-prohibited-ai-practices" target="_blank" rel="noopener">Article 5 summary, fetched</a></div></article>
+          <article class="evidence"><span class="tag">Platform</span><h3>Cloud policy can erase the engine overnight.</h3><p>OpenAI's policy prohibits profiling or classifying individuals based on social behavior or personal traits as written. Local models are the stable base.</p><div class="source"><a href="https://openai.com/policies/usagepolicies/" target="_blank" rel="noopener">OpenAI usage policies, indexed</a></div></article>
+          <article class="evidence"><span class="tag warn">Mobile</span><h3>Third-party AI adds consent friction.</h3><p>Apple's Nov 2025 guidelines require disclosure and explicit permission before personal data is shared with a named third-party AI provider. Local inference avoids that specific transfer.</p><div class="source"><a href="https://techcrunch.com/2025/11/13/apples-new-app-review-guidelines-clamp-down-on-apps-sharing-personal-data-with-third-party-ai/" target="_blank" rel="noopener">TechCrunch, indexed</a></div></article>
+        </div>
+      </div>
+    </section>
+
+    <section id="sources">
+      <div class="section-head">
+        <div class="section-num">06 / LEDGER</div>
+        <div><h2>Source ledger.</h2><p class="section-deck">“Abstract” means the research relied on indexed abstract or search text. “Fetched” means the page text was read on 11 October 2026.</p></div>
+      </div>
+      <div class="content">
+        <div class="filterbar" aria-label="Filter sources">
+          <button class="active" type="button" data-filter="all">All</button><button type="button" data-filter="psychometrics">Psychometrics</button><button type="button" data-filter="regulation">Regulation</button><button type="button" data-filter="market">Market</button>
+        </div>
+        <div class="sources">
+          <article class="source-card" data-category="psychometrics"><span class="source-type">Abstract</span><p>Zhu, Jin &amp; Coifman (2025): conversational personality inference, max r=.27, high test–retest, κ&lt;.10.</p><a href="https://arxiv.org/abs/2507.14355v1" target="_blank" rel="noopener">Open source ↗</a></article>
+          <article class="source-card" data-category="psychometrics"><span class="source-type">Abstract</span><p>Zhu, Jin &amp; Coifman (2025): item-first BFI-10 prompting outperformed direct trait inference.</p><a href="https://arxiv.org/abs/2501.07532" target="_blank" rel="noopener">Open source ↗</a></article>
+          <article class="source-card" data-category="psychometrics"><span class="source-type">Abstract</span><p>Härtel et al. (2026): aggregation ICC=.75–.92; convergent r=.07–.20.</p><a href="https://onlinelibrary.wiley.com/doi/10.1111/ijsa.70074" target="_blank" rel="noopener">Open source ↗</a></article>
+          <article class="source-card" data-category="psychometrics"><span class="source-type">Abstract</span><p>Matšenas et al. (2026): N=33, r=.38–.58 against IPIP-50; perceived accuracy matched questionnaires.</p><a href="https://arxiv.org/abs/2602.15848v1" target="_blank" rel="noopener">Open source ↗</a></article>
+          <article class="source-card" data-category="psychometrics"><span class="source-type">Abstract</span><p>Serapio-García et al. (2025): convergent validity scaled with model size and instruction tuning.</p><a href="https://www.nature.com/articles/s42256-025-01115-6" target="_blank" rel="noopener">Open source ↗</a></article>
+          <article class="source-card" data-category="regulation"><span class="source-type">Fetched</span><p>EU AI Act Article 5 prohibited practices; biometric scope of workplace and education emotion inference.</p><a href="https://casrai.org/dictionary/term/eu-ai-act-article-5-prohibited-ai-practices" target="_blank" rel="noopener">Open source ↗</a></article>
+          <article class="source-card" data-category="regulation"><span class="source-type">Indexed</span><p>Mobley v. Workday vendor liability; NYC Local Law 144 enforcement summary.</p><a href="https://autonainews.com/7-ai-hiring-lawsuits/" target="_blank" rel="noopener">Open source ↗</a></article>
+          <article class="source-card" data-category="regulation"><span class="source-type">Indexed</span><p>OpenAI usage policy prohibition on profiling based on social behavior or personal traits.</p><a href="https://openai.com/policies/usagepolicies/" target="_blank" rel="noopener">Open source ↗</a></article>
+          <article class="source-card" data-category="market"><span class="source-type">Fetched</span><p>Stripe restricted and prohibited business categories and discretionary deceptive-claims language.</p><a href="https://stripe.com/legal/restricted-businesses" target="_blank" rel="noopener">Open source ↗</a></article>
+          <article class="source-card" data-category="market"><span class="source-type">Indexed</span><p>Flock Safety: $7.5B valuation; approximately 18% layoffs amid political backlash in October 2026.</p><a href="https://www.reuters.com/business/ai-surveillance-startup-flock-safety-cut-several-hundred-jobs-amid-backlash-2026-10-09/" target="_blank" rel="noopener">Open source ↗</a></article>
+          <article class="source-card" data-category="market"><span class="source-type">Indexed</span><p>Crystal Knows pricing and feature comparison, used as a market existence proof rather than independent validation.</p><a href="https://humantic.ai/comparison/crystal-knows-alternative" target="_blank" rel="noopener">Open source ↗</a></article>
+        </div>
+        <div class="endnote"><p><strong>Interpretation rule.</strong> Published personality results span different instruments, samples, prompts, and targets. The chart preserves those differences rather than averaging them into a fictional master score.</p><p><strong>Decision rule.</strong> If a blinded Barnum control cannot distinguish matched from mismatched profiles, stop. If it can, proceed to the anchored volunteer study before making commercial accuracy claims.</p></div>
+        <a class="backtop" href="#top">Back to top ↑</a>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    (function () {
+      /* ——— Nav + source filters (carried over) ——— */
+      var navButtons = document.querySelectorAll('.nav button');
+      navButtons.forEach(function (button) {
+        button.addEventListener('click', function () {
+          var target = document.getElementById(button.getAttribute('data-target'));
+          if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+      });
+      var sections = document.querySelectorAll('main section');
+      if ('IntersectionObserver' in window) {
+        var observer = new IntersectionObserver(function (entries) {
+          entries.forEach(function (entry) {
+            if (entry.isIntersecting) {
+              navButtons.forEach(function (b) { b.classList.toggle('active', b.getAttribute('data-target') === entry.target.id); });
+            }
+          });
+        }, { rootMargin: '-20% 0px -70% 0px' });
+        sections.forEach(function (section) { observer.observe(section); });
+      }
+      var filters = document.querySelectorAll('.filterbar button');
+      var sourceCards = document.querySelectorAll('.source-card');
+      filters.forEach(function (button) {
+        button.addEventListener('click', function () {
+          var filter = button.getAttribute('data-filter');
+          filters.forEach(function (b) { b.classList.toggle('active', b === button); });
+          sourceCards.forEach(function (card) {
+            card.hidden = filter !== 'all' && card.getAttribute('data-category') !== filter;
+          });
+        });
+      });
+
+      /* ——— Profiler PoC engine v0: transparent, on-device ——— */
+      var SAMPLES = {
+        analyst: "The thesis was never that the rocket works once. Anybody can light a candle. The question is whether the system holds together across a flight record, because reliability is what turns a spectacle into infrastructure, and infrastructure is what actually gets priced. I keep coming back to the same pattern in the data: the companies that survive are the ones that build the whole stack instead of renting the critical pieces from somebody who can change the terms. That is why the balance sheet matters more than the headline. Cash runway is just time, and time is the only resource that lets a hard engineering problem get solved before the market loses patience. People argue about the multiple like the number on the screen is the argument. It is not. The number is noise around a question about execution. So I track the boring evidence: cadence, failure modes, how management talks when a test goes wrong, whether the explanation changes after the fact. Confidence is cheap in a transcript. What I want is consistency between what they said last year, what they built this year, and what the physics required all along. If those three line up, I hold. If they drift, no story fixes it.",
+        fiction: "The road into Stonard had gone soft with rain, and the wagons made a sound like teeth working in a wet mouth. Joren kept his hand off his sword, which took more effort than drawing it would have, because the men watching from the palisade were counting exactly that kind of gesture. He had been a boy the last time he stood here, small enough that the gate had seemed like the wall of the world. Now he could see the rot in the timber and the places where the pitch had been scraped thin to save coin, and somehow that was worse than the spears. A place could survive being hated. It could not survive being cheapened by the very hands sworn to hold it. Behind him, Essa laughed at something one of the drovers said, bright and careless, and the sound carried wrong across the marsh, too alive for a town that had learned to keep its windows shuttered before dark. He wanted to tell her to quiet down. He wanted, with an ache that embarrassed him, to laugh with her instead and let the town think whatever it pleased. The gate chains began to sing, link over link, and the road gave them no more time to be anything but what they had come as.",
+        casual: "lol ok so i finally tried that place you kept talking about and you were right, the noodles are actually insane. i went in thinking it was gonna be another hype spot where you pay twenty bucks to still be hungry after but i was full for like the whole afternoon. anyway are you coming saturday or what, because mike said he is bringing his switch and i still owe you a rematch after that embarrassing loss last time, do NOT bring up the score i already know. also my car made that noise again this morning, the rattly one, and i am choosing to believe it will fix itself because i do not have mechanic money right now. if it dies it dies i guess. text me when you wake up, i know you were up till like 4 playing that factory game again. oh and thank you for sending me that video yesterday i cried laughing at work and had to pretend it was allergies, my boss absolutely did not believe me but whatever, worth it. seriously though saturday, let me know, i will grab snacks if you grab drinks."
+      };
+
+      var FUNC = ['the','of','and','a','to','in','is','you','that','it','he','was','for','on','are','as','with','his','they','i','at','be','this','have','from','or','one','had','by','word','but','not','what','all','were','we','when','your','can','said','there','use','an','each','which','she','do','how','their','if','will','up','other','about','out','many','then','them','these','so','some','her','would','make','like','him','into','time','has','look','two','more','write','go','see','number','no','way','could','people','my','than','first','been','call','who','its','now','find','long','down','day','did','get','come','made','may','part'];
+      var LEX = {
+        open: ['imagine','idea','ideas','theory','curious','wonder','abstract','art','philosophy','universe','dream','explore','concept','pattern','possibility','question','questions','meaning','story','world'],
+        cons: ['plan','organize','schedule','finish','complete','goal','work','build','built','system','order','careful','detail','deadline','hold','track','record','consistent','survive'],
+        extra: ['friend','friends','party','people','talk','excited','love','fun','everyone','together','social','laugh','laughed','energy','saturday','rematch','snacks'],
+        agree: ['help','care','kind','thank','thanks','sorry','feel','support','gentle','please','heart','give','right','believe'],
+        neuro: ['worry','anxious','afraid','stress','hate','tired','pain','fear','angry','sad','alone','doubt','wrong','embarrassing','dies','noise'],
+        anal: ['because','therefore','however','evidence','data','result','cause','system','model','actually','instead','whether','pattern','question','consistency','required']
+      };
+
+      var els = {
+        name: document.getElementById('subjectName'),
+        a: document.getElementById('sampleA'),
+        b: document.getElementById('sampleB'),
+        status: document.getElementById('opsStatus'),
+        log: document.getElementById('oplog'),
+        linkScore: document.getElementById('linkScore'),
+        linkNote: document.getElementById('linkNote')
+      };
+      var lastReport = null;
+
+      function logLine(text) {
+        var d = document.createElement('div');
+        var t = new Date();
+        var hh = ('0' + t.getHours()).slice(-2), mm = ('0' + t.getMinutes()).slice(-2), ss = ('0' + t.getSeconds()).slice(-2);
+        d.innerHTML = '<b>' + hh + ':' + mm + ':' + ss + '</b> · ';
+        d.appendChild(document.createTextNode(text));
+        els.log.appendChild(d);
+        els.log.scrollTop = els.log.scrollHeight;
+      }
+      function setStatus(msg, cls) {
+        els.status.textContent = msg;
+        els.status.className = 'ops-status' + (cls ? ' ' + cls : '');
+      }
+      function tokenize(text) {
+        return (text.toLowerCase().match(/[a-z']+/g) || []);
+      }
+      function analyze(text) {
+        var words = tokenize(text);
+        var sents = text.split(/[.!?]+/).filter(function (s) { return s.trim().length > 0; });
+        var uniq = {};
+        words.forEach(function (w) { uniq[w] = (uniq[w] || 0) + 1; });
+        var vocab = Object.keys(uniq).length;
+        var totalChars = words.join('').length;
+        var fw = FUNC.map(function (f) {
+          return words.length ? (uniq[f] || 0) / words.length : 0;
+        });
+        function lexScore(list) {
+          var hits = 0;
+          list.forEach(function (w) { hits += uniq[w] || 0; });
+          var per1k = words.length ? hits / words.length * 1000 : 0;
+          return { hits: hits, score: Math.max(2, Math.min(98, Math.round(per1k * 9 + 8))) };
+        }
+        var punct = {
+          comma: (text.match(/,/g) || []).length,
+          dash: (text.match(/—|--/g) || []).length,
+          paren: (text.match(/\(/g) || []).length,
+          question: (text.match(/\?/g) || []).length,
+          excl: (text.match(/!/g) || []).length
+        };
+        return {
+          words: words.length,
+          sentences: Math.max(sents.length, 1),
+          wps: words.length ? words.length / Math.max(sents.length, 1) : 0,
+          ttr: words.length ? vocab / words.length : 0,
+          avgLen: words.length ? totalChars / words.length : 0,
+          fw: fw,
+          traits: {
+            open: lexScore(LEX.open), cons: lexScore(LEX.cons), extra: lexScore(LEX.extra),
+            agree: lexScore(LEX.agree), neuro: lexScore(LEX.neuro), anal: lexScore(LEX.anal)
+          },
+          punctPer1k: words.length ? (punct.comma + punct.dash * 2 + punct.paren + punct.question + punct.excl) / words.length * 1000 : 0
+        };
+      }
+      function cosine(u, v) {
+        var dot = 0, nu = 0, nv = 0;
+        for (var i = 0; i < u.length; i++) { dot += u[i] * v[i]; nu += u[i] * u[i]; nv += v[i] * v[i]; }
+        if (!nu || !nv) return 0;
+        return dot / (Math.sqrt(nu) * Math.sqrt(nv));
+      }
+      function setBar(barId, valId, entry) {
+        document.getElementById(barId).style.width = entry.score + '%';
+        document.getElementById(valId).textContent = entry.score + ' / 100 · ' + entry.hits + ' hits';
+      }
+      function confidence(words) {
+        if (words < 80) return 'Low';
+        if (words < 200) return 'Fair';
+        if (words < 500) return 'Good';
+        return 'High';
+      }
+
+      function runProfile() {
+        var textA = els.a.value.trim();
+        if (!textA) { setStatus('No Sample A. Paste writing or load a demo sample first.', 'warn'); logLine('Run aborted — Sample A empty.'); return; }
+        var A = analyze(textA);
+        document.getElementById('stWords').textContent = A.words.toLocaleString();
+        document.getElementById('stSent').textContent = A.sentences;
+        document.getElementById('stWps').textContent = A.wps.toFixed(1);
+        document.getElementById('stTtr').textContent = A.ttr.toFixed(2);
+        document.getElementById('stWordLen').textContent = A.avgLen.toFixed(1);
+        document.getElementById('stConf').textContent = confidence(A.words);
+        setBar('bOpen', 'vOpen', A.traits.open);
+        setBar('bCons', 'vCons', A.traits.cons);
+        setBar('bExtra', 'vExtra', A.traits.extra);
+        setBar('bAgree', 'vAgree', A.traits.agree);
+        setBar('bNeuro', 'vNeuro', A.traits.neuro);
+        setBar('bAnal', 'vAnal', A.traits.anal);
+        logLine('Profile run on "' + els.name.value + '" — ' + A.words + ' words, ' + A.sentences + ' sentences, richness ' + A.ttr.toFixed(2) + '. Confidence: ' + confidence(A.words) + '.');
+
+        var link = null;
+        var textB = els.b.value.trim();
+        if (textB) {
+          var B = analyze(textB);
+          var vA = A.fw.concat([A.wps / 40, A.punctPer1k / 60, A.avgLen / 8]);
+          var vB = B.fw.concat([B.wps / 40, B.punctPer1k / 60, B.avgLen / 8]);
+          var sim = cosine(vA, vB);
+          link = Math.round(sim * 100);
+          els.linkScore.textContent = link + '%';
+          els.linkNote.textContent = link >= 88
+            ? 'Very close fingerprints. Same author is plausible — function words and rhythm are hard to fake across a whole sample. Treat as a lead, not proof.'
+            : link >= 75
+            ? 'Substantial overlap. Could be the same author in a different genre or mood — exactly the case the anchored validation cases exist to test.'
+            : 'Weak overlap. Different authors, or the same author performing a very different register. v0 cannot separate those two; the local-model engine is the next test.';
+          logLine('Linkage A↔B computed — similarity ' + link + '% (B: ' + B.words + ' words).');
+        } else {
+          els.linkScore.textContent = '—';
+          els.linkNote.textContent = 'Add Sample B and run the profile to compare function-word fingerprints, sentence rhythm, and punctuation habits.';
+          logLine('No Sample B supplied — linkage skipped.');
+        }
+        if (A.words < 80) setStatus('Profile produced, but ' + A.words + ' words is thin. Fingerprints stabilize past ~200 words.', 'warn');
+        else setStatus('Case file updated for ' + els.name.value + '. Export it below the desk if you want to keep this run.', 'ok');
+        lastReport = { subject: els.name.value, when: new Date().toISOString(), A: A, link: link };
+      }
+
+      function reportText() {
+        if (!lastReport) return '';
+        var A = lastReport.A;
+        var lines = [
+          'PROFILER PoC — CASE FILE',
+          'Subject: ' + lastReport.subject,
+          'Run: ' + lastReport.when,
+          'Engine: v0 heuristic (on-device stylometry + lexicon proxies — not psychometric scores, no IQ estimate)',
+          '',
+          'Corpus: ' + A.words + ' words · ' + A.sentences + ' sentences · ' + A.wps.toFixed(1) + ' words/sentence',
+          'Vocab richness (type-token): ' + A.ttr.toFixed(2) + ' · Avg word length: ' + A.avgLen.toFixed(1) + ' · Sample confidence: ' + confidence(A.words),
+          '',
+          'Trait proxies (0-100, lexicon density):',
+          '  Openness: ' + A.traits.open.score + ' (' + A.traits.open.hits + ' hits)',
+          '  Conscientiousness: ' + A.traits.cons.score + ' (' + A.traits.cons.hits + ' hits)',
+          '  Extraversion: ' + A.traits.extra.score + ' (' + A.traits.extra.hits + ' hits)',
+          '  Agreeableness: ' + A.traits.agree.score + ' (' + A.traits.agree.hits + ' hits)',
+          '  Negative emotionality: ' + A.traits.neuro.score + ' (' + A.traits.neuro.hits + ' hits)',
+          '  Analytical density: ' + A.traits.anal.score + ' (' + A.traits.anal.hits + ' hits)'
+        ];
+        if (lastReport.link !== null) lines.push('', 'Stylometric linkage A↔B: ' + lastReport.link + '% fingerprint similarity (lead, not proof).');
+        return lines.join('\n');
+      }
+
+      document.querySelectorAll('[data-sample]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var key = btn.getAttribute('data-sample');
+          els.a.value = SAMPLES[key];
+          els.name.value = 'CASE-DEMO — ' + key.charAt(0).toUpperCase() + key.slice(1) + ' sample';
+          setStatus('Demo sample loaded (' + key + '). Hit Run profile.', '');
+          logLine('Demo sample loaded: ' + key + '.');
+        });
+      });
+      document.getElementById('clearBtn').addEventListener('click', function () {
+        els.a.value = ''; els.b.value = ''; lastReport = null;
+        els.linkScore.textContent = '—';
+        setStatus('Desk cleared.', '');
+        logLine('Samples cleared by operator.');
+      });
+      document.getElementById('runBtn').addEventListener('click', runProfile);
+      document.getElementById('downloadBtn').addEventListener('click', function () {
+        if (!lastReport) { setStatus('Run a profile first — there is no case file to download yet.', 'warn'); return; }
+        var blob = new Blob([reportText()], { type: 'text/plain' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url; a.download = 'profiler-case-file.txt';
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        logLine('Case file exported as profiler-case-file.txt.');
+      });
+      document.getElementById('copyBtn').addEventListener('click', function () {
+        if (!lastReport) { setStatus('Run a profile first — there is no summary to copy yet.', 'warn'); return; }
+        var txt = reportText();
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(txt).then(function () { setStatus('Summary copied to clipboard.', 'ok'); }, function () { setStatus('Copy was blocked by the browser. Download the case file instead.', 'warn'); });
+        } else { setStatus('Clipboard is unavailable here. Download the case file instead.', 'warn'); }
+      });
+    }());
+  </script>
+</body>
+</html>
