@@ -57,6 +57,24 @@ How it works:
   connects to your existing Chrome tabs over CDP, but that is
   Chrome-only and not used in this Firefox setup.
 
+## Using the ready-made agent
+
+The repo ships an OpenCode subagent for exactly this job:
+`.opencode/agents/ffn-fetch.md`. After pulling, restart OpenCode and
+confirm it registered with `opencode agent list`, then invoke it with
+`@ffn-fetch` and tell it what to fetch, for example "fetch my latest
+story" (defaults to user id 2805979) or "fetch story 13762993".
+
+The agent navigates the profile in the real Firefox, picks the most
+recent own story (skipping favourites), saves the profile and chapter
+pages as HTML under `ffn-fetch/`, runs
+`scripts/scrape_ffn_latest.pl` with the offline flags, and reports
+the output path. It grabs the page's main content container rather
+than the whole document, because a full page of HTML is tens of
+thousands of tokens and the local model would choke on three of them.
+If a page shows a Cloudflare challenge it waits up to 30 seconds for
+it to clear, then stops and says so instead of working around it.
+
 ## Workflow: agent fetches, Perl script parses
 
 For an author with FFN user id `<id>`:
