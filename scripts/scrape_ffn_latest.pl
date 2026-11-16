@@ -306,9 +306,11 @@ while ($profile_html =~ m{
     my ($sid, $ch, $slug, $title_raw) = ($1, $2, $3, $4);
     my $pos  = pos($profile_html);
     my $tail = substr($profile_html, $pos, 1500);
-    # Favourite test: " by " plus an author link at the start of the tail.
+    # Favourite test: " by " plus an author link somewhere in the head.
+    # (A favourite entry has the chapter-arrow link between the title
+    #  and the " by <author>", so anchoring at ^ misses favourites.)
     my $head = substr($tail, 0, 200);
-    next if $head =~ m{^\s*by\s+<a[^>]*href=["']/u/\d+}is;
+    next if $head =~ m{by\s+<a[^>]*href=["']/u/\d+}is;
     my $title = strip_tags($title_raw);
     my $tail_text = strip_tags($tail);
     # Metadata line looks like:
