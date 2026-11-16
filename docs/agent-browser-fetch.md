@@ -11,38 +11,51 @@ The Perl scrapers already support this split: the agent fetches pages
 in a real browser and saves the raw HTML, and the script parses the
 saved files instead of fetching. No change to the parsers is needed.
 
-## Setup: Playwright MCP in Roo Code
+## Setup: Playwright MCP in OpenCode
 
-Prerequisites: Node.js (for `npx`) and Chrome installed on the
-Windows box. Roo Code is an MCP client; add the Playwright MCP
-server to its MCP settings (`mcp_settings.json`):
+Prerequisites: Node.js (for `npx`) on the Windows box. OpenCode
+is the MCP client; add the Playwright MCP server to
+`~/.config/opencode/opencode.json` (global) or `opencode.json` in
+the project root:
 
 ```json
 {
-  "mcpServers": {
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
     "playwright": {
-      "command": "npx",
-      "args": ["@playwright/mcp@latest"],
-      "disabled": false,
-      "autoApprove": []
+      "type": "local",
+      "command": ["npx", "@playwright/mcp@latest", "--browser", "firefox"],
+      "enabled": true
     }
   }
 }
 ```
 
+Note the shape: OpenCode wants `type: "local"` and `command` as an
+array of the executable plus its arguments. The Claude Desktop
+shape (a string `command` plus a separate `args` array) is silently
+ignored by OpenCode, so do not use it here.
+
+Firefox is chosen with `--browser firefox`; Chrome is the default
+if the flag is left off. If the server fails to connect, check the
+browser binary is installed first: `npx playwright install firefox`.
+
 How it works:
 
-- The server drives a real browser (Chrome channel by default) and
-  gives the agent tools like `browser_navigate`, `browser_snapshot`,
-  and `browser_evaluate`.
+- The server drives a real Firefox and gives the agent tools like
+  `browser_navigate`, `browser_snapshot`, and `browser_evaluate`.
+  Check it connected with `/mcp` inside OpenCode.
+- The browser runs headed by default, so you can watch it and log
+  into FFN in it the first time.
 - The profile is **persistent by default**: login state, cookies and
   local storage are kept between sessions, on Windows under
   `%LOCALAPPDATA%\ms-playwright-mcp\`. Log into FFN once in that
   browser and later sessions start logged in.
-- To drive the Chrome you already use instead, the server also has a
-  browser-extension mode that connects to your existing tabs over
-  CDP, so the agent works in your real browser with your real
-  session. See the Playwright MCP docs for the extension setup.
+- The same server works in other MCP clients (Roo Code, Claude
+  Code, ...) with their own config shape; OpenCode is the one in
+  use here. Playwright MCP also has a browser-extension mode that
+  connects to your existing Chrome tabs over CDP, but that is
+  Chrome-only and not used in this Firefox setup.
 
 ## Workflow: agent fetches, Perl script parses
 
