@@ -17,6 +17,10 @@ export function loadPrompt(kind: AnalysisKind): string {
   return readFileSync(join(PROMPT_DIR, FILES[kind]), "utf8");
 }
 
+export function loadPromptFile(name: string): string {
+  return readFileSync(join(PROMPT_DIR, name), "utf8");
+}
+
 export function loadSystemPrompt(): string {
   return readFileSync(join(PROMPT_DIR, "system.md"), "utf8").trim();
 }
@@ -31,7 +35,7 @@ function renderPrior(prior: AnalysisResult[]): string {
         : r.warning
           ? `\n(warning: ${r.warning})`
           : "";
-      return `## ${r.kind}\n${body}${note}`;
+      return `## ${r.kind}${r.pass ? ` (${r.pass})` : ""}\n${body}${note}`;
     })
     .join("\n\n");
 }
@@ -41,7 +45,16 @@ export function buildMessages(
   corpus: Corpus,
   prior: AnalysisResult[],
 ): ChatMessage[] {
-  const template = loadPrompt(kind);
+  return buildMessagesFromTemplate(FILES[kind], corpus, prior);
+}
+
+/** Same message shape as buildMessages, but addressed by prompt file name (multi-pass stages). */
+export function buildMessagesFromTemplate(
+  templateFile: string,
+  corpus: Corpus,
+  prior: AnalysisResult[],
+): ChatMessage[] {
+  const template = loadPromptFile(templateFile);
   const content = template
     .replace("{{PRIOR}}", () => renderPrior(prior))
     .replace("{{CORPUS}}", () => corpus.combined);
