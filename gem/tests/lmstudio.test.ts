@@ -35,3 +35,40 @@ test("chat: throws on non-2xx", async () => {
     globalThis.fetch = orig;
   }
 });
+
+test("chat: passes a dispatcher option to fetch", async () => {
+  const orig = globalThis.fetch;
+  let capturedInit: RequestInit | undefined;
+  globalThis.fetch = (async (_url: any, init?: RequestInit) => {
+    capturedInit = init;
+    return new Response(JSON.stringify({ choices: [{ message: { content: "hello" } }] }), { status: 200 });
+  }) as any;
+  try {
+    await chat(cfg, "m1", [{ role: "user", content: "hi" }]);
+    assert.ok(capturedInit, "fetch init should be captured");
+    assert.ok((capturedInit as any).dispatcher, "init.dispatcher should be defined");
+  } finally {
+    globalThis.fetch = orig;
+  }
+});
+
+test("chat: surfaces cause message when fetch rejects", async () => {
+  const orig = globalThis.fetch;
+  const cause = new Error("Headers Timeout Error");
+  globalThis.fetch = (async () => {
+    throw new Error("fetch failed", { cause });
+  }) as any;
+  try {
+    await assert.rejects(
+      () => chat(cfg, "m1", [{ role: "user", content: "hi" }]),
+      (err: unknown) => {
+        const e = err as Error & { cause?: unknown };
+        assert.ok(e.message.includes("Headers Timeout Error"), `message should include cause text, got: ${e.message}`);
+        assert.equal(e.cause instanceof Error && e.cause.message, "fetch failed");
+        return true;
+      },
+    );
+  } finally {
+    globalThis.fetch = orig;
+  }
+});
