@@ -18,8 +18,15 @@ Dimensions:
 - register         how voice shifts across sources; persona vs. author (fiction!)
 
 Rules:
-- Fiction is evidence of craft, not of the author's typical level. A writer's
-  best passages overestimate them; mark quotes that look like voice or persona.
+- Best passages are evidence of the author's CEILING, not contaminants. Quote
+  them. Mark which observations come from the strongest passages
+  (best_passage: true) so synthesis can anchor on them and regress, rather than
+  discard them. Fiction is evidence of craft AND of the author's capability when
+  it is their own composition; treat voice/persona as a weighting note, not an
+  exclusion. Do NOT sideline strong writing.
+- Genuine errors (homophone slips, mental-math slips, dropped words, continuity
+  breaks) are calibration data for the proficiency subtests, not style — record
+  them as weaknesses with their own observations.
 - Quote exactly. Never paraphrase inside "quote".
 - 8 to 18 observations. Quality over count.
 
@@ -31,11 +38,13 @@ Respond with a single JSON object only, no prose, no markdown fences:
       "quote": "verbatim passage, 40 words or fewer",
       "signal": "what this passage shows",
       "reading": "interpretation: strength, weakness, or neutral — and why",
-      "confidence": "low" | "fair" | "high"
+      "confidence": "low" | "fair" | "high",
+      "best_passage": true | false
     }
   ],
   "register_notes": string,
-  "coverage_gaps": "what this sample cannot tell us"
+  "coverage_gaps": "what this sample cannot tell us",
+  "behavioral_level_raw": "the unadjusted cognitive level suggested by the strongest evidence, as a number or short range, before regression to the mean"
 }
 
 Writing samples:
