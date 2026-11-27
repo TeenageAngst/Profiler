@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
 import { assembleCorpus, isEmpty } from "./corpus.ts";
 import { runAnalysis } from "./runner.ts";
+import { runDeep } from "./pipeline.ts";
 import { tierFor } from "./tiers.ts";
 import type { AnalysisKind, LmStudioConfig } from "./types.ts";
 
@@ -52,6 +53,18 @@ export function createApp(deps: ServerDeps) {
       const corpus = assembleCorpus(inputs);
       if (isEmpty(corpus)) return res.status(400).json({ error: "empty corpus" });
       const tier = deps.tierFor(model);
+      const truthy = (v: unknown) => ["1", "true", "yes"].includes(String(v ?? "").toLowerCase());
+      if (truthy(req.body.deep)) {
+        if (kind !== "iq") {
+          return res.status(400).json({ error: "deep mode is IQ-only in this prototype" });
+        }
+        const critique = truthy(req.body.critique);
+        const result = await runDeep(
+          deps.config, kind, model, corpus, tier, { critique },
+          (c, m, msgs) => deps.lmstudio.chat(c, m, msgs),
+        );
+        return res.json(result);
+      }
       const result = await runAnalysis(deps.config, kind, model, corpus, [], tier, (c, m, msgs) => deps.lmstudio.chat(c, m, msgs));
       res.json(result);
     } catch (e) {

@@ -1,4 +1,6 @@
 const MODEL_SELECT = document.getElementById("modelSelect");
+const DEEP_CHECK = document.getElementById("deepMode");
+const CRITIQUE_CHECK = document.getElementById("critiqueMode");
 
 function escapeHtml(s) {
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({
@@ -144,6 +146,10 @@ function buildFormData(kind, model, inputs) {
   form.append("kind", kind);
   form.append("model", model);
   form.append("inputs", JSON.stringify(inputs));
+  if (DEEP_CHECK.checked && kind === "iq") {
+    form.append("deep", "1");
+    if (CRITIQUE_CHECK.checked) form.append("critique", "1");
+  }
   return form;
 }
 
@@ -170,6 +176,122 @@ function renderResult(kind, result) {
     '<div class="result-head"><span class="result-kind">' + escapeHtml(kind) + '</span>' + tierBadge + '</div>' +
     body + warnText + err + rawDetails +
     '</div>';
+}
+
+/* ——— Deep (multi-pass) rendering ——— */
+
+const isStr = (v) => typeof v === "string" && v.trim().length > 0;
+const isArr = (v) => Array.isArray(v) && v.length > 0;
+
+function section(title, inner) {
+  return '<div class="profile-section"><h3>' + escapeHtml(title) + '</h3>' + inner + '</div>';
+}
+
+function listSection(title, items, cls) {
+  if (!isArr(items)) return '';
+  const lis = items.map((i) => '<li>' + escapeHtml(typeof i === "string" ? i : JSON.stringify(i)) + '</li>').join("");
+  return section(title, '<ul class="profile-list' + (cls ? " " + cls : '') + '">' + lis + '</ul>');
+}
+
+function renderIqProfile(parsed, result) {
+  let html = '';
+  const est = typeof parsed.iq_estimate === "number" ? '~' + parsed.iq_estimate : '';
+  const fmtRange = (r) => isArr(r) && r.length === 2 ? escapeHtml(r.join('–')) : null;
+  const sd1 = fmtRange(parsed.range_1sd);
+  const sd2 = fmtRange(parsed.range_2sd);
+  const rangeBits = [sd1 ? '1 SD ' + sd1 : null, sd2 ? '2 SD ' + sd2 : null].filter(Boolean).join('  ·  ');
+  if (est || rangeBits || isStr(parsed.confidence)) {
+    html += '<div class="profile-score">'
+      + (est ? '<span class="profile-iq">' + escapeHtml(est) + '</span>' : '')
+      + (rangeBits ? '<span class="profile-range">' + rangeBits + '</span>' : '')
+      + (isStr(parsed.confidence) ? '<span class="profile-conf">confidence: ' + escapeHtml(parsed.confidence) + '</span>' : '')
+      + '</div>';
+  }
+  if (isStr(parsed.narrative)) {
+    const paras = parsed.narrative.split(/\n{2,}/).map((p) => '<p>' + escapeHtml(p.trim()).replace(/\n/g, '<br>') + '</p>').join("");
+    html += section('Narrative', paras);
+  }
+  if (isStr(parsed.register_stability)) {
+    html += section('Register stability', '<p>' + escapeHtml(parsed.register_stability) + '</p>');
+  }
+  if (isArr(parsed.evidence)) {
+    const items = parsed.evidence.map((e) => {
+      if (typeof e !== "object" || e === null) return '<li>' + escapeHtml(String(e)) + '</li>';
+      return '<li>'
+        + (isStr(e.claim) ? '<div class="profile-claim">' + escapeHtml(e.claim) + '</div>' : '')
+        + (isStr(e.quote) ? '<div class="profile-quote">“' + escapeHtml(e.quote) + '”</div>' : '')
+        + (isStr(e.why) ? '<div class="profile-why">' + escapeHtml(e.why) + '</div>' : '')
+        + '</li>';
+    }).join("");
+    html += section('Evidence', '<ul class="profile-evidence">' + items + '</ul>');
+  }
+  html += listSection('Alternative readings', parsed.alternative_readings);
+  html += listSection('What would change this', parsed.what_would_change_this);
+  html += listSection('Caveats', parsed.caveats, 'profile-caveats');
+  if (result.warning) html += '<div class="result-warn">' + escapeHtml(result.warning) + '</div>';
+  if (result.parseError) html += '<div class="result-error">Parse error: ' + escapeHtml(result.parseError) + '</div>';
+  return html;
+}
+
+function renderCritique(crit) {
+  const parsed = crit.parsed;
+  let inner = '';
+  if (!parsed) {
+    inner = '<pre class="result-raw">' + escapeHtml(crit.raw ?? "") + '</pre>'
+      + (crit.parseError ? '<div class="result-error">Parse error: ' + escapeHtml(crit.parseError) + '</div>' : '');
+  } else {
+    if (isStr(parsed.verdict)) inner += '<p class="critique-verdict">' + escapeHtml(parsed.verdict) + '</p>';
+    inner += listSection('Barnum flags', parsed.barnum_flags, 'profile-flags');
+    inner += listSection('Overreach', parsed.overreach_flags, 'profile-flags');
+    inner += listSection('Cherry picks', parsed.cherry_picks, 'profile-flags');
+    if (isStr(parsed.calibration)) inner += section('Calibration', '<p>' + escapeHtml(parsed.calibration) + '</p>');
+    inner += listSection('Holds up', parsed.keep);
+    inner += listSection('Does not hold', parsed.drop, 'profile-flags');
+  }
+  return '<div class="result-card critique-card">'
+    + '<div class="result-head"><span class="result-kind">critique &middot; red team</span></div>'
+    + inner + '</div>';
+}
+
+function passDetails(pass, idx) {
+  const label = 'pass ' + (idx + 1) + ' · ' + (pass.pass ?? 'pass');
+  let count = '';
+  if (pass.parsed && Array.isArray(pass.parsed.observations)) count = ' — ' + pass.parsed.observations.length + ' observations';
+  const body = pass.parsed
+    ? '<pre class="result-raw">' + escapeHtml(JSON.stringify(pass.parsed, null, 2)) + '</pre>'
+    : '<pre class="result-raw">' + escapeHtml(pass.raw ?? "") + '</pre>';
+  const err = pass.parseError ? '<div class="result-error">Parse error: ' + escapeHtml(pass.parseError) + '</div>' : '';
+  return '<details class="result-raw-details pass-details"><summary>' + escapeHtml(label) + escapeHtml(count) + '</summary>' + body + err + '</details>';
+}
+
+function renderDeep(kind, result) {
+  const tierBadge = result.tier === "experimental"
+    ? '<span class="warn-badge">EXPERIMENTAL &middot; result may be unreliable</span>'
+    : '';
+  const final = result.final ?? {};
+  let profileHtml;
+  if (final.parsed) {
+    profileHtml = renderIqProfile(final.parsed, result);
+  } else {
+    profileHtml = '<pre class="result-raw">' + escapeHtml(final.raw ?? "") + '</pre>'
+      + (final.parseError ? '<div class="result-error">Parse error: ' + escapeHtml(final.parseError) + '</div>' : '');
+  }
+  const crit = (result.passes ?? []).find((p) => p.pass === "critique");
+  const head = '<div class="result-card">'
+    + '<div class="result-head"><span class="result-kind">' + escapeHtml(kind) + ' &middot; deep multi-pass</span>' + tierBadge + '</div>'
+    + profileHtml
+    + (final.parsed && final.raw
+      ? '<details class="result-raw-details"><summary>raw model output</summary><pre class="result-raw">' + escapeHtml(final.raw) + '</pre></details>'
+      : '')
+    + '</div>';
+  const critHtml = crit ? renderCritique(crit) : '';
+  const passesHtml = (result.passes ?? []).map(passDetails).join("");
+  RESULTS.innerHTML = head + critHtml + passesHtml;
+}
+
+function renderAny(kind, result) {
+  if (result && result.passes) renderDeep(kind, result);
+  else renderResult(kind, result);
 }
 
 function renderRunAll(payload) {
@@ -220,8 +342,12 @@ async function run(kind) {
   }
 
   setActiveTab(kind);
-  status(`Running ${kind}…`);
-  log(`POST /api/run kind=${kind} model=${model} inputs=${inputs.length}`);
+  const deep = DEEP_CHECK.checked && kind === "iq";
+  if (DEEP_CHECK.checked && kind !== "iq") {
+    log("Deep mode is IQ-only in this prototype — running single-pass instead.");
+  }
+  status(deep ? "Running deep iq — multi-pass, may take a while…" : `Running ${kind}…`);
+  log(`POST /api/run kind=${kind} model=${model} inputs=${inputs.length}${deep ? ` deep=1${CRITIQUE_CHECK.checked ? " critique=1" : ""}` : ""}`);
 
   try {
     const res = await fetch("/api/run", { method: "POST", body: buildFormData(kind, model, inputs) });
@@ -234,9 +360,14 @@ async function run(kind) {
     lastPayload = { subject: SUBJECT_INPUT.value, model, kind, inputs, result };
     payloadsByKind[kind] = lastPayload;
     currentPayload = lastPayload;
-    renderResult(kind, result);
-    log(`Run complete: kind=${kind} tier=${result.tier} parsed=${result.parsed != null}`);
-    status(`Run complete (${result.tier}).`, result.tier === "experimental" ? "" : "ok");
+    renderAny(kind, result);
+    if (result.passes) {
+      log(`Deep run complete: ${result.passes.length} passes tier=${result.tier} parsed=${result.final?.parsed != null}`);
+    } else {
+      log(`Run complete: kind=${kind} tier=${result.tier} parsed=${result.parsed != null}`);
+    }
+    const tier = result.tier;
+    status(deep ? `Deep run complete (${tier}).` : `Run complete (${tier}).`, tier === "experimental" ? "" : "ok");
   } catch (e) {
     log(`Run failed: ${e}`, "error");
     status(`Run failed: ${e.message}`, "err");
@@ -336,7 +467,7 @@ TABS.forEach((t) => {
     }
     const existing = resultsByKind[kind];
     if (existing) {
-      renderResult(kind, existing);
+      renderAny(kind, existing);
       currentPayload = payloadsByKind[kind] || currentPayload;
       status(`Showing cached ${kind} result.`);
     } else {
@@ -346,6 +477,9 @@ TABS.forEach((t) => {
 });
 
 RUN_BTN.addEventListener("click", () => run(activeKind()));
+DEEP_CHECK.addEventListener("change", () => {
+  if (!DEEP_CHECK.checked) CRITIQUE_CHECK.checked = false;
+});
 RUN_ALL_BTN.addEventListener("click", () => runAll());
 COPY_BTN.addEventListener("click", copyCaseFile);
 DOWNLOAD_BTN.addEventListener("click", downloadCaseFile);

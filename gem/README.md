@@ -67,6 +67,18 @@ model, then run a single analysis tab or **Run all**. **Run all** feeds each
 completed analysis forward as context for the next one, even if an earlier
 stage failed to parse.
 
+### Deep mode (prototype)
+
+Tick **DEEP** before running IQ for the multi-pass pipeline:
+**extract** (evidence with verbatim quotes) → **synthesize** (condensed written
+profile with narrative, evidence, alternative readings, and calibration) →
+optional **critique** pass (red-teams the draft for Barnum statements, overreach,
+and best-passage bias). Each pass feeds the next; a pass that fails to parse
+still feeds its raw text forward. Deep mode is IQ-only in this prototype and
+slower than a single run — expect a few model calls per run. The final profile
+is rendered as a formatted case report; every pass is kept for inspection and
+export.
+
 ## Test
 
 ```bash
@@ -88,10 +100,15 @@ Model trust is controlled by `config/models.json`:
 
 ```json
 {
-  "full": ["qwen", "27b", "gemma-31b", "nemotron", "super"],
-  "experimental": ["26b", "moE", "4b", "7b", "8b", "14b", "e2b", "e4b"]
+  "full": ["qwen", "27b", "31b", "gemma-31b", "nemotron", "super", "qwq", "deepseek", "r1", "thinking"],
+  "experimental": ["26b", "moE", "4b", "7b", "8b", "14b", "e2b", "e4b", "3b", "1.5b"]
 }
 ```
+
+`full` now means *at or above the reasoning capability floor* — models expected
+to handle multi-pass deep analysis (large dense or reasoning/thinking models).
+Small and MoE-small models stay `experimental`: they run single-pass analyses
+with warnings, and deep results on them are explicitly flagged as unreliable.
 
 - Matching is case-insensitive substring matching. Size tokens that begin with
   a digit must not be preceded by another digit, so `7b` matches `qwen-7b` but

@@ -1,4 +1,4 @@
 {
-  "full": ["qwen", "27b", "gemma-31b", "nemotron", "super"],
-  "experimental": ["26b", "moE", "4b", "7b", "8b", "14b", "e2b", "e4b"]
+  "full": ["qwen", "27b", "31b", "gemma-31b", "nemotron", "super", "qwq", "deepseek", "r1", "thinking"],
+  "experimental": ["26b", "moE", "4b", "7b", "8b", "14b", "e2b", "e4b", "3b", "1.5b"]
 }

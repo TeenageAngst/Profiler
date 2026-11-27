@@ -46,3 +46,10 @@ test("tierFor: default config classifies shipped models", () => {
   assert.equal(tierFor("qwen2.5-27b-instruct"), "full");
   assert.equal(tierFor("gemma-3-26b-moe"), "experimental");
 });
+
+test("tierFor: default config keeps reasoning models at the deep-analysis floor", () => {
+  assert.equal(tierFor("deepseek-r1"), "full");
+  assert.equal(tierFor("qwen3-32b-thinking"), "full");
+  assert.equal(tierFor("deepseek-r1-distill-qwen-7b"), "experimental");
+  assert.equal(tierFor("qwen3-14b"), "experimental");
+});
